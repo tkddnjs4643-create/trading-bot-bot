@@ -33,21 +33,24 @@ KRW_RATE = 1350  # 원/달러 환율
 CFG = {
     "QLD":   {
         "name": "QLD (나스닥 2배)", "ticker": "QQQ",
+        "ticker_label": "QQQ",
+        "hold_label": "QLD", "defense_label": "QQQ(나스닥100)",
         "ma": 200, "mult": 1.8, "whip": 30, "cur": "USD",
-        "defense": "QQQ",   # 방어 시 전환 종목
-        "weight": 0.35
+        "defense": "QQQ", "weight": 0.35
     },
     "SPTL":  {
         "name": "SPTL (장기채)", "ticker": "SPTL",
+        "ticker_label": "SPTL",
+        "hold_label": "SPTL", "defense_label": "USFR(단기채)",
         "ma": 200, "mult": 2.5, "whip": 30, "cur": "USD",
-        "defense": "USFR",
-        "weight": 0.20
+        "defense": "USFR", "weight": 0.20
     },
     "KOSPI": {
-        "name": "코스피 (KODEX)", "ticker": "^KS11",
+        "name": "KODEX 코리아밸류업", "ticker": "^KS11",
+        "ticker_label": "코스피 지수 기준",
+        "hold_label": "KODEX 밸류업", "defense_label": "QQQ(나스닥100)",
         "ma": 120, "mult": 2.0, "whip": 30, "cur": "KRW",
-        "defense": "QQQ",
-        "weight": 0.05
+        "defense": "QQQ", "weight": 0.05
     },
 }
 
@@ -82,6 +85,10 @@ def calculate_atr(df, window=14):
 # ──────────────────────────────────────────────────────────────
 def analyze(key):
     cfg = CFG[key]
+    defense_label = cfg.get("defense_label", cfg["defense"])
+    hold_label    = cfg.get("hold_label", cfg["ticker"])
+    ma_label      = cfg.get("ticker_label", cfg["ticker"])
+
     try:
         raw = yf.download(cfg["ticker"], period="400d", auto_adjust=True, progress=False)
         if len(raw) < cfg["ma"] + 10:
@@ -99,18 +106,17 @@ def analyze(key):
         above    = last > ma_last
         ratio    = (last / ma_last - 1) * 100
 
-        # 현재 포지션 판단
-        position = cfg["ticker"] if above else cfg["defense"]
+        position   = hold_label if above else defense_label
         is_defense = not above
 
         # 1순위: 서킷브레이커
         if not above and move <= -cfg["mult"] * atr_last:
-            return {"signal": "SELL", "position": position, "is_defense": is_defense,
-                    "msg": f"ATR {cfg['mult']}배 급락 감지 → {cfg['defense']} 전환 필요",
+            return {"signal": "SELL", "position": position, "is_defense": is_defense, "priority": 1,
+                    "msg": f"[1순위] ATR {cfg['mult']}배 급락 감지 → 내일 {defense_label} 방어 진입",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
         if not above and move >= cfg["mult"] * atr_last:
-            return {"signal": "BUY", "position": position, "is_defense": is_defense,
-                    "msg": f"ATR {cfg['mult']}배 급등 → {cfg['ticker']} 복귀 신호",
+            return {"signal": "BUY", "position": position, "is_defense": is_defense, "priority": 1,
+                    "msg": f"[1순위] ATR {cfg['mult']}배 급등 감지 → 내일 {hold_label} 복귀",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
 
         # 2순위: WHIPSAW
@@ -122,27 +128,27 @@ def analyze(key):
         buf_high  = ma_last + 0.2 * atr_last
 
         if all_below and last < buf_low:
-            return {"signal": "SELL", "position": position, "is_defense": is_defense,
-                    "msg": f"{cfg['whip']}일 연속 하회 + 버퍼 하단 돌파 → {cfg['defense']} 전환 필요",
+            return {"signal": "SELL", "position": position, "is_defense": is_defense, "priority": 2,
+                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 하회 → 내일 {defense_label} 방어 진입",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
         if all_above and last > buf_high:
-            return {"signal": "BUY", "position": position, "is_defense": is_defense,
-                    "msg": f"{cfg['whip']}일 연속 상회 + 버퍼 상단 돌파 → {cfg['ticker']} 복귀",
+            return {"signal": "BUY", "position": position, "is_defense": is_defense, "priority": 2,
+                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 회복 → 내일 {hold_label} 복귀",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
 
         # 유지
         if above:
-            msg = f"{cfg['ma']}일선 상회 중 → {cfg['ticker']} 보유 유지"
+            msg = f"{ma_label} ATR 필터 이상 없음 → {hold_label} 보유 유지"
         else:
-            msg = f"{cfg['ma']}일선 하회 중 → {cfg['defense']} 방어 유지 (버퍼 내)"
+            msg = f"{ma_label} {cfg['ma']}일선 하회 중 (ATR 버퍼 내) → {defense_label} 방어 유지"
 
         return {"signal": "HOLD" if above else "WATCH",
-                "position": position, "is_defense": is_defense,
+                "position": position, "is_defense": is_defense, "priority": 0,
                 "msg": msg, "price": last, "ma": ma_last,
                 "atr": atr_last, "ratio": ratio, "above": above}
 
     except Exception as e:
-        return {"signal": "error", "position": "-", "is_defense": False, "msg": str(e)}
+        return {"signal": "error", "position": "-", "is_defense": False, "priority": 0, "msg": str(e)}
 
 # ──────────────────────────────────────────────────────────────
 # 데이터 수집
