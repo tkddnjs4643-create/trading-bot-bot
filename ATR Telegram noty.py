@@ -240,7 +240,7 @@ def build_telegram_msg():
 
     # 하단 안내
     if has_sell or has_buy:
-        lines.append("⚡ 오늘 밤 미국 장 시작 시 (22:30~) 매매 대응")
+        lines.append("⚡ 오늘 장 시작 시 ("매매 대응")
     else:
         lines.append("💤 오늘 매매 없음 — 오전 9시 다시 확인")
 
