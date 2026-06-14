@@ -1,6 +1,6 @@
 # ============================================================
-#  ATR 신호 체커 - Python → HTML 생성기 + 텔레그램 알림
-#  Colab에서 실행 → signal.html 생성 + 텔레그램 메시지 발송
+#  ATR 신호 체커 + 텔레그램 알림
+#  매일 오전 9시 깃허브 Actions 자동 실행
 # ============================================================
 # !pip install yfinance pandas numpy requests
 
@@ -15,30 +15,28 @@ warnings.filterwarnings("ignore")
 
 # ──────────────────────────────────────────────────────────────
 # ★ 텔레그램 설정
-#    깃허브 Actions: Secrets에서 자동으로 불러옴
-#    로컬/Colab:     아래 주석 해제하고 직접 입력
 # ──────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN   = os.getenv("TG_TOKEN")    # 깃허브 Secrets: TG_TOKEN
-TELEGRAM_CHAT_ID = os.getenv("TG_CHAT_ID")  # 깃허브 Secrets: TG_CHAT_ID
+TELEGRAM_TOKEN   = os.getenv("TG_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TG_CHAT_ID")
 
-# 로컬/Colab에서 테스트할 때는 아래 주석 해제
+# 로컬/Colab 테스트 시 주석 해제
 # TELEGRAM_TOKEN   = "직접_토큰_입력"
 # TELEGRAM_CHAT_ID = "직접_채팅ID_입력"
 
-KRW_RATE = 1350  # 원/달러 환율
+KRW_RATE = 1350
 
 # ──────────────────────────────────────────────────────────────
-# 전략 설정 + 포지션 구조
+# 전략 설정
 # ──────────────────────────────────────────────────────────────
 CFG = {
-    "QLD":   {
+    "QLD": {
         "name": "QLD (나스닥 2배)", "ticker": "QQQ",
         "ticker_label": "QQQ",
         "hold_label": "QLD", "defense_label": "QQQ(나스닥100)",
         "ma": 200, "mult": 1.8, "whip": 30, "cur": "USD",
         "defense": "QQQ", "weight": 0.35
     },
-    "SPTL":  {
+    "SPTL": {
         "name": "SPTL (장기채)", "ticker": "SPTL",
         "ticker_label": "SPTL",
         "hold_label": "SPTL", "defense_label": "USFR(단기채)",
@@ -54,10 +52,9 @@ CFG = {
     },
 }
 
-def fmt_usd(v):
-    if v is None or (isinstance(v, float) and np.isnan(v)): return "-"
-    return f"${v:,.2f}"
-
+# ──────────────────────────────────────────────────────────────
+# 유틸
+# ──────────────────────────────────────────────────────────────
 def fmt_krw(v):
     if v is None or (isinstance(v, float) and np.isnan(v)): return "-"
     won = v * KRW_RATE
@@ -84,7 +81,7 @@ def calculate_atr(df, window=14):
 # 신호 분석
 # ──────────────────────────────────────────────────────────────
 def analyze(key):
-    cfg = CFG[key]
+    cfg           = CFG[key]
     defense_label = cfg.get("defense_label", cfg["defense"])
     hold_label    = cfg.get("hold_label", cfg["ticker"])
     ma_label      = cfg.get("ticker_label", cfg["ticker"])
@@ -94,10 +91,9 @@ def analyze(key):
         if len(raw) < cfg["ma"] + 10:
             return {"signal": "error", "msg": "데이터 부족"}
 
-        close = raw["Close"].squeeze()
-        ma    = close.rolling(cfg["ma"]).mean()
-        atr   = calculate_atr(raw)
-
+        close    = raw["Close"].squeeze()
+        ma       = close.rolling(cfg["ma"]).mean()
+        atr      = calculate_atr(raw)
         last     = float(close.iloc[-1])
         prev     = float(close.iloc[-2])
         ma_last  = float(ma.iloc[-1])
@@ -105,7 +101,6 @@ def analyze(key):
         move     = last - prev
         above    = last > ma_last
         ratio    = (last / ma_last - 1) * 100
-
         position   = hold_label if above else defense_label
         is_defense = not above
 
@@ -160,7 +155,6 @@ for key in CFG:
     results[key] = analyze(key)
 print("✅ 완료!\n")
 
-# 콘솔 출력
 for key, r in results.items():
     sig  = r.get("signal", "error")
     icon = "🔴" if sig=="SELL" else "🟢" if sig=="BUY" else "🟡" if sig=="WATCH" else "🔵"
@@ -168,10 +162,10 @@ for key, r in results.items():
     defe = " [방어중]" if r.get("is_defense") else ""
     print(f"{icon} {CFG[key]['name']}{defe}: {r.get('msg','')}")
     if r.get("price"):
-        print(f"   현재 포지션: {pos} | 현재가: {fmt_price(r['price'], CFG[key]['cur'])} | 이격도: {r['ratio']:+.2f}%")
+        print(f"   포지션: {pos} | 현재가: {fmt_price(r['price'], CFG[key]['cur'])} | 이격도: {r['ratio']:+.2f}%")
 
 # ──────────────────────────────────────────────────────────────
-# 텔레그램 메시지
+# 텔레그램
 # ──────────────────────────────────────────────────────────────
 def send_telegram(token, chat_id, text):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -186,15 +180,14 @@ def send_telegram(token, chat_id, text):
         print(f"❌ 텔레그램 연결 실패: {e}")
 
 def build_telegram_msg():
-    now  = datetime.now().strftime("%Y/%m/%d %H:%M")
+    now   = datetime.now().strftime("%Y/%m/%d %H:%M")
     today = datetime.now().strftime("%Y/%m/%d")
-    sigs = [r.get("signal") for r in results.values()]
+    sigs  = [r.get("signal") for r in results.values()]
 
-    has_sell  = "SELL" in sigs
-    has_buy   = "BUY"  in sigs
+    has_sell  = "SELL"  in sigs
+    has_buy   = "BUY"   in sigs
     has_watch = "WATCH" in sigs
 
-    # 헤더
     if has_sell:
         header = "🔴 매도 신호 유지 중 — 포지션 확인"
     elif has_buy:
@@ -213,14 +206,14 @@ def build_telegram_msg():
     ]
 
     for key, r in results.items():
-        cfg  = CFG[key]
-        sig  = r.get("signal", "error")
-        icon = "🔴" if sig=="SELL" else "🟢" if sig=="BUY" else "🟡" if sig=="WATCH" else "🔵"
-        pos  = r.get("position", "-")
-        defe = "🛡방어중" if r.get("is_defense") else "📈보유중"
-        pr   = r.get("price")
-        ma   = r.get("ma")
-        ratio= r.get("ratio")
+        cfg   = CFG[key]
+        sig   = r.get("signal", "error")
+        icon  = "🔴" if sig=="SELL" else "🟢" if sig=="BUY" else "🟡" if sig=="WATCH" else "🔵"
+        pos   = r.get("position", "-")
+        defe  = "🛡방어중" if r.get("is_defense") else "📈보유중"
+        pr    = r.get("price")
+        ma    = r.get("ma")
+        ratio = r.get("ratio")
 
         lines.append(f"\n{icon} <b>{cfg['name']}</b>")
         lines.append(f"  [{defe}: {pos}]")
@@ -233,14 +226,10 @@ def build_telegram_msg():
                 lines.append(f"  {cfg['ma']}일선: {int(ma):,}pt | 이격도: {ratio:+.2f}%")
         lines.append(f"  → {r.get('msg','')}")
 
-    lines += [
-        "",
-        "─" * 28,
-    ]
+    lines += ["", "─" * 28]
 
-    # 하단 안내
     if has_sell or has_buy:
-        lines.append("⚡ 오늘 장 시작 시 ("매매 대응")
+        lines.append("⚡ 오늘 장 시작 시 매매 대응")
     else:
         lines.append("💤 오늘 매매 없음 — 오전 9시 다시 확인")
 
@@ -272,7 +261,6 @@ def pos_badge(is_defense, pos):
 
 def card_html(key, r):
     cfg   = CFG[key]
-    sig   = r.get("signal", "error")
     ratio = r.get("ratio")
     pr    = r.get("price")
     ma    = r.get("ma")
@@ -298,7 +286,7 @@ def card_html(key, r):
           <div style="font-size:15px;font-weight:500">{cfg['name']}</div>
           <div style="font-size:11px;color:#8b949e;margin-top:2px">{cfg['ticker']}</div>
         </div>
-        {badge(sig)}
+        {badge(r.get('signal','error'))}
       </div>
       <div style="margin-bottom:12px">{pos_badge(r.get('is_defense',False), r.get('position','-'))}</div>
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #21262d;font-size:13px">
@@ -323,9 +311,9 @@ def card_html(key, r):
 def summary_banner():
     sigs = [r.get("signal") for r in results.values()]
     if "SELL" in sigs:
-        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매도 대응</div></div></div>'
+        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 시작 시 매도 대응</div></div></div>'
     if "BUY" in sigs:
-        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매수 대응</div></div></div>'
+        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 시작 시 매수 대응</div></div></div>'
     if "WATCH" in sigs:
         return '<div style="background:#3d2200;border:1px solid #e3b341;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">⚠️</span><div><div style="font-size:15px;font-weight:500">주시 구간</div><div style="font-size:12px;color:#8b949e;margin-top:2px">이평선 하회 중 — 포지션 유지</div></div></div>'
     return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">모든 자산 정상 보유</div><div style="font-size:12px;color:#8b949e;margin-top:2px">매매 신호 없음</div></div></div>'
@@ -382,214 +370,3 @@ try:
     print("⬇️  자동 다운로드!")
 except:
     print("💡 signal.html 파일을 직접 열어주세요.")
-
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from datetime import datetime
-import warnings
-warnings.filterwarnings("ignore")
-
-# ──────────────────────────────────────────────────────────────
-# 설정
-# ──────────────────────────────────────────────────────────────
-CFG = {
-    "QLD":   {"name": "QLD (나스닥 2배)", "ticker": "QQQ",    "ma": 200, "mult": 1.8, "whip": 30, "cur": "USD"},
-    "SPTL":  {"name": "SPTL (장기채)",    "ticker": "SPTL",   "ma": 200, "mult": 2.5, "whip": 30, "cur": "USD"},
-    "KOSPI": {"name": "코스피",           "ticker": "^KS11",  "ma": 120, "mult": 2.0, "whip": 30, "cur": "KRW"},
-}
-
-# ──────────────────────────────────────────────────────────────
-# 데이터 & 신호 계산
-# ──────────────────────────────────────────────────────────────
-def calculate_atr(df, window=14):
-    h, l, c = df["High"], df["Low"], df["Close"]
-    tr = pd.concat([h-l, (h-c.shift(1)).abs(), (l-c.shift(1)).abs()], axis=1).max(axis=1)
-    return tr.rolling(window).mean()
-
-def analyze(key):
-    cfg = CFG[key]
-    try:
-        raw = yf.download(cfg["ticker"], period="400d", auto_adjust=True, progress=False)
-        if len(raw) < cfg["ma"] + 10:
-            return {"signal": "error", "msg": "데이터 부족"}
-
-        close = raw["Close"].squeeze()
-        high  = raw["High"].squeeze()
-        low   = raw["Low"].squeeze()
-
-        ma  = close.rolling(cfg["ma"]).mean()
-        atr = calculate_atr(raw)
-
-        last     = float(close.iloc[-1])
-        prev     = float(close.iloc[-2])
-        ma_last  = float(ma.iloc[-1])
-        atr_last = float(atr.iloc[-1])
-        move     = last - prev
-        above    = last > ma_last
-        ratio    = (last / ma_last - 1) * 100
-
-        # 1순위: 서킷브레이커
-        if not above and move <= -cfg["mult"] * atr_last:
-            return {"signal": "SELL", "msg": f"{cfg['ma']}일선 하회 + ATR {cfg['mult']}배 급락 감지",
-                    "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
-        if not above and move >= cfg["mult"] * atr_last:
-            return {"signal": "BUY", "msg": f"{cfg['ma']}일선 하회 + ATR {cfg['mult']}배 급등 (복귀)",
-                    "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
-
-        # 2순위: WHIPSAW
-        rc_close = close.iloc[-cfg["whip"]:]
-        rc_ma    = ma.iloc[-cfg["whip"]:]
-        all_below = all(c < m for c, m in zip(rc_close, rc_ma) if not np.isnan(m))
-        all_above = all(c > m for c, m in zip(rc_close, rc_ma) if not np.isnan(m))
-        buf_low   = ma_last - 0.2 * atr_last
-        buf_high  = ma_last + 0.2 * atr_last
-
-        if all_below and last < buf_low:
-            return {"signal": "SELL", "msg": f"{cfg['whip']}일 연속 하회 + 버퍼 하단 돌파",
-                    "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
-        if all_above and last > buf_high:
-            return {"signal": "BUY", "msg": f"{cfg['whip']}일 연속 상회 + 버퍼 상단 돌파 (복귀)",
-                    "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
-
-        zone = f"{cfg['ma']}일선 {'상회 중' if above else '하회 (버퍼 내 유지)'}"
-        return {"signal": "HOLD" if above else "WATCH", "msg": zone,
-                "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
-
-    except Exception as e:
-        return {"signal": "error", "msg": str(e)}
-
-print("📥 데이터 다운로드 중...")
-results = {}
-for key in CFG:
-    print(f"   {CFG[key]['name']} 분석 중...")
-    results[key] = analyze(key)
-
-print("✅ 완료!\n")
-
-# 결과 출력
-for key, r in results.items():
-    sig = r.get("signal", "error")
-    icon = "🔴" if sig=="SELL" else "🟢" if sig=="BUY" else "🟡" if sig=="WATCH" else "🔵"
-    print(f"{icon} {CFG[key]['name']}: {r.get('msg','')}")
-    if r.get("price"):
-        print(f"   현재가: {r['price']:.2f} | {CFG[key]['ma']}일선: {r['ma']:.2f} | 이격도: {r['ratio']:+.2f}%")
-
-# ──────────────────────────────────────────────────────────────
-# HTML 생성
-# ──────────────────────────────────────────────────────────────
-def fmt(v, cur="USD"):
-    if v is None or (isinstance(v, float) and np.isnan(v)): return "-"
-    if cur == "KRW": return f"{int(v):,}"
-    return f"{v:.2f}"
-
-def badge(sig):
-    if sig == "SELL":  return '<span style="background:#4d1019;color:#f85149;padding:3px 10px;border-radius:20px;font-size:11px">🔴 매도 신호</span>'
-    if sig == "BUY":   return '<span style="background:#0d4429;color:#3fb950;padding:3px 10px;border-radius:20px;font-size:11px">🟢 복귀 신호</span>'
-    if sig == "WATCH": return '<span style="background:#3d2200;color:#e3b341;padding:3px 10px;border-radius:20px;font-size:11px">🟡 주시</span>'
-    return '<span style="background:#21262d;color:#8b949e;padding:3px 10px;border-radius:20px;font-size:11px">🔵 보유 유지</span>'
-
-def ratio_color(v):
-    if v is None: return "#8b949e"
-    return "#3fb950" if v >= 0 else "#f85149"
-
-def card_html(key, r):
-    cfg = CFG[key]
-    sig = r.get("signal", "error")
-    ratio = r.get("ratio")
-    ratio_str = f"{ratio:+.2f}%" if ratio is not None else "-"
-    above_str = "▲상회" if r.get("above") else "▼하회" if r.get("above") is not None else "-"
-    return f"""
-    <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:18px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
-        <div>
-          <div style="font-size:15px;font-weight:500">{cfg['name']}</div>
-          <div style="font-size:11px;color:#8b949e;margin-top:2px">{cfg['ticker']}</div>
-        </div>
-        {badge(sig)}
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #21262d;font-size:13px">
-        <span style="color:#8b949e">현재가</span><span style="font-weight:500">{fmt(r.get('price'), cfg['cur'])}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #21262d;font-size:13px">
-        <span style="color:#8b949e">{cfg['ma']}일선</span><span style="font-weight:500">{fmt(r.get('ma'), cfg['cur'])} ({above_str})</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #21262d;font-size:13px">
-        <span style="color:#8b949e">ATR (14일)</span><span style="font-weight:500">{fmt(r.get('atr'), cfg['cur'])}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px">
-        <span style="color:#8b949e">이격도</span>
-        <span style="font-weight:500;color:{ratio_color(ratio)}">{ratio_str}</span>
-      </div>
-      <div style="margin-top:10px;background:#0d1117;border-radius:6px;padding:9px 12px;font-size:12px;color:#8b949e">
-        {r.get('msg','')}
-      </div>
-    </div>"""
-
-def summary_banner():
-    sigs = [r.get("signal") for r in results.values()]
-    if "SELL" in sigs:
-        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매도 대응</div></div></div>'
-    if "BUY" in sigs:
-        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매수 대응</div></div></div>'
-    if "WATCH" in sigs:
-        return '<div style="background:#3d2200;border:1px solid #e3b341;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">⚠️</span><div><div style="font-size:15px;font-weight:500">주시 구간</div><div style="font-size:12px;color:#8b949e;margin-top:2px">이평선 하회 중 — 버퍼 내 위치, 포지션 유지</div></div></div>'
-    return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">모든 자산 정상 보유</div><div style="font-size:12px;color:#8b949e;margin-top:2px">매매 신호 없음 — 보유 유지</div></div></div>'
-
-def sig_rows():
-    rows = ""
-    for key, r in results.items():
-        cfg = CFG[key]
-        sig = r.get("signal","error")
-        dot_color = "#f85149" if sig=="SELL" else "#3fb950" if sig=="BUY" else "#e3b341" if sig=="WATCH" else "#3fb950"
-        act = "→ 매도 대응" if sig=="SELL" else "→ 매수 대응" if sig=="BUY" else "→ 유지(주시)" if sig=="WATCH" else "→ 보유 유지"
-        act_color = "#f85149" if sig=="SELL" else "#3fb950" if sig=="BUY" else "#e3b341" if sig=="WATCH" else "#3fb950"
-        rows += f"""
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #21262d">
-          <span style="width:8px;height:8px;border-radius:50%;background:{dot_color};flex-shrink:0;display:inline-block"></span>
-          <span style="font-size:14px;font-weight:500;min-width:120px">{cfg['name']}</span>
-          <span style="font-size:12px;color:#8b949e;flex:1">{r.get('msg','')}</span>
-          <span style="font-size:12px;font-weight:500;color:{act_color}">{act}</span>
-        </div>"""
-    return rows
-
-now = datetime.now().strftime("%Y년 %m월 %d일 %H:%M")
-cards = "".join(card_html(k, v) for k, v in results.items())
-
-html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<title>ATR 신호 체커 | {now}</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;padding:24px;min-height:100vh">
-  <h1 style="font-size:20px;font-weight:500;margin-bottom:4px">📊 ATR 신호 체커</h1>
-  <p style="font-size:13px;color:#8b949e;margin-bottom:8px">동적 자산배분 전략 | QLD · SPTL · 코스피</p>
-  <p style="font-size:12px;color:#8b949e;margin-bottom:20px">업데이트: {now}</p>
-
-  {summary_banner()}
-
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:20px">
-    {cards}
-  </div>
-
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;padding:18px">
-    <div style="font-size:13px;color:#8b949e;margin-bottom:10px">오늘의 매매 신호 요약</div>
-    {sig_rows()}
-  </div>
-</body>
-</html>"""
-
-with open("signal.html", "w", encoding="utf-8") as f:
-    f.write(html)
-
-print("\n💾 signal.html 저장 완료!")
-print("📂 파일을 브라우저로 열어서 확인하세요.")
-
-# Colab에서 자동으로 파일 다운로드
-try:
-    from google.colab import files
-    files.download("signal.html")
-    print("⬇️  자동 다운로드 시작!")
-except:
-    print("💡 로컬 실행 시 signal.html 파일을 직접 열어주세요.")
