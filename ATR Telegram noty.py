@@ -9,7 +9,12 @@ import pandas as pd
 import numpy as np
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
+
+def now_kst():
+    return datetime.now(KST)
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -180,8 +185,8 @@ def send_telegram(token, chat_id, text):
         print(f"❌ 텔레그램 연결 실패: {e}")
 
 def build_telegram_msg():
-    now   = datetime.now().strftime("%Y/%m/%d %H:%M")
-    today = datetime.now().strftime("%Y/%m/%d")
+    now   = now_kst().strftime("%Y/%m/%d %H:%M (KST)")
+    today = now_kst().strftime("%Y/%m/%d")
     sigs  = [r.get("signal") for r in results.values()]
 
     has_sell  = "SELL"  in sigs
@@ -336,7 +341,7 @@ def sig_rows():
         </div>"""
     return rows
 
-now_str = datetime.now().strftime("%Y년 %m월 %d일 %H:%M")
+now_str = now_kst().strftime("%Y년 %m월 %d일 %H:%M (KST)")
 cards   = "".join(card_html(k, v) for k, v in results.items())
 
 html = f"""<!DOCTYPE html>
