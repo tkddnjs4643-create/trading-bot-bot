@@ -217,10 +217,7 @@ print("\n" + "="*50)
 print(msg)
 print("="*50)
 
-if TELEGRAM_TOKEN != "여기에_봇_토큰_입력":
-    send_telegram(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, msg)
-else:
-    print("\n⚠️ 텔레그램 토큰을 설정하면 자동 발송됩니다.")
+send_telegram(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, msg)
 
 # ──────────────────────────────────────────────────────────────
 # HTML 생성
