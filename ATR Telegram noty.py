@@ -196,9 +196,11 @@ def build_telegram_msg():
 
     # 헤더
     if has_sell:
-        header = "🚨 <b>매도 신호 발생! 즉시 확인 필요</b>"
+        header = "🔴 매도 신호 유지 중 — 포지션 확인"
     elif has_buy:
-        header = "✅ <b>복귀 신호 발생! 즉시 확인 필요</b>"
+        header = "🟢 복귀 신호 유지 중 — 포지션 확인"
+    elif has_watch:
+        header = "🟡 방어 유지 중 — 매매 없음"
     else:
         header = "📋 어제와 동일 — 매매 없음"
 
@@ -238,9 +240,9 @@ def build_telegram_msg():
 
     # 하단 안내
     if has_sell or has_buy:
-        lines.append("⚡ 오늘 장 마감 후 확인 → 내일 시가 매매")
+        lines.append("⚡ 오늘 한국, 미국 장 시작 시 매매 대응")
     else:
-        lines.append("💤 오늘 매매 없음 — 내일 다시 확인")
+        lines.append("💤 오늘 매매 없음 — 내일 오전 9시 다시 확인")
 
     return "\n".join(lines)
 
