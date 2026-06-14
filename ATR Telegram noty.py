@@ -112,11 +112,11 @@ def analyze(key):
         # 1순위: 서킷브레이커
         if not above and move <= -cfg["mult"] * atr_last:
             return {"signal": "SELL", "position": position, "is_defense": is_defense, "priority": 1,
-                    "msg": f"[1순위] ATR {cfg['mult']}배 급락 감지 → 내일 {defense_label} 방어 진입",
+                    "msg": f"[1순위] ATR {cfg['mult']}배 급락 감지 → {defense_label} 방어 진입",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
         if not above and move >= cfg["mult"] * atr_last:
             return {"signal": "BUY", "position": position, "is_defense": is_defense, "priority": 1,
-                    "msg": f"[1순위] ATR {cfg['mult']}배 급등 감지 → 내일 {hold_label} 복귀",
+                    "msg": f"[1순위] ATR {cfg['mult']}배 급등 감지 → {hold_label} 복귀",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
 
         # 2순위: WHIPSAW
@@ -129,11 +129,11 @@ def analyze(key):
 
         if all_below and last < buf_low:
             return {"signal": "SELL", "position": position, "is_defense": is_defense, "priority": 2,
-                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 하회 → 내일 {defense_label} 방어 진입",
+                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 하회 → {defense_label} 방어 진입",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
         if all_above and last > buf_high:
             return {"signal": "BUY", "position": position, "is_defense": is_defense, "priority": 2,
-                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 회복 → 내일 {hold_label} 복귀",
+                    "msg": f"[2순위] {ma_label} {cfg['ma']}일선 {cfg['whip']}일 연속 회복 → {hold_label} 복귀",
                     "price": last, "ma": ma_last, "atr": atr_last, "ratio": ratio, "above": above}
 
         # 유지
@@ -240,9 +240,9 @@ def build_telegram_msg():
 
     # 하단 안내
     if has_sell or has_buy:
-        lines.append("⚡ 오늘 한국, 미국 장 시작 시 매매 대응")
+        lines.append("⚡ 오늘 밤 미국 장 시작 시 (22:30~) 매매 대응")
     else:
-        lines.append("💤 오늘 매매 없음 — 내일 오전 9시 다시 확인")
+        lines.append("💤 오늘 매매 없음 — 오전 9시 다시 확인")
 
     return "\n".join(lines)
 
@@ -323,9 +323,9 @@ def card_html(key, r):
 def summary_banner():
     sigs = [r.get("signal") for r in results.values()]
     if "SELL" in sigs:
-        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 내일 시가 매도</div></div></div>'
+        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매도 대응</div></div></div>'
     if "BUY" in sigs:
-        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 내일 시가 매수</div></div></div>'
+        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매수 대응</div></div></div>'
     if "WATCH" in sigs:
         return '<div style="background:#3d2200;border:1px solid #e3b341;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">⚠️</span><div><div style="font-size:15px;font-weight:500">주시 구간</div><div style="font-size:12px;color:#8b949e;margin-top:2px">이평선 하회 중 — 포지션 유지</div></div></div>'
     return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">모든 자산 정상 보유</div><div style="font-size:12px;color:#8b949e;margin-top:2px">매매 신호 없음</div></div></div>'
@@ -336,7 +336,7 @@ def sig_rows():
         cfg = CFG[key]
         sig = r.get("signal", "error")
         dc  = "#f85149" if sig=="SELL" else "#3fb950" if sig=="BUY" else "#e3b341" if sig=="WATCH" else "#3fb950"
-        act = "→ 내일 매도" if sig=="SELL" else "→ 내일 매수" if sig=="BUY" else "→ 유지(주시)" if sig=="WATCH" else "→ 보유 유지"
+        act = "→ 매도 대응" if sig=="SELL" else "→ 매수 대응" if sig=="BUY" else "→ 유지(주시)" if sig=="WATCH" else "→ 보유 유지"
         pos = r.get("position", "-")
         def_txt = f" [🛡{pos}]" if r.get("is_defense") else f" [📈{pos}]"
         rows += f"""
@@ -529,9 +529,9 @@ def card_html(key, r):
 def summary_banner():
     sigs = [r.get("signal") for r in results.values()]
     if "SELL" in sigs:
-        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 내일 시가 매도</div></div></div>'
+        return '<div style="background:#4d1019;border:1px solid #f85149;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">🚨</span><div><div style="font-size:15px;font-weight:500">매도 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매도 대응</div></div></div>'
     if "BUY" in sigs:
-        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 내일 시가 매수</div></div></div>'
+        return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">복귀 신호 발생!</div><div style="font-size:12px;color:#8b949e;margin-top:2px">오늘 장 마감 확인 → 매수 대응</div></div></div>'
     if "WATCH" in sigs:
         return '<div style="background:#3d2200;border:1px solid #e3b341;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">⚠️</span><div><div style="font-size:15px;font-weight:500">주시 구간</div><div style="font-size:12px;color:#8b949e;margin-top:2px">이평선 하회 중 — 버퍼 내 위치, 포지션 유지</div></div></div>'
     return '<div style="background:#0d4429;border:1px solid #238636;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:22px">✅</span><div><div style="font-size:15px;font-weight:500">모든 자산 정상 보유</div><div style="font-size:12px;color:#8b949e;margin-top:2px">매매 신호 없음 — 보유 유지</div></div></div>'
@@ -542,7 +542,7 @@ def sig_rows():
         cfg = CFG[key]
         sig = r.get("signal","error")
         dot_color = "#f85149" if sig=="SELL" else "#3fb950" if sig=="BUY" else "#e3b341" if sig=="WATCH" else "#3fb950"
-        act = "→ 내일 매도" if sig=="SELL" else "→ 내일 매수" if sig=="BUY" else "→ 유지(주시)" if sig=="WATCH" else "→ 보유 유지"
+        act = "→ 매도 대응" if sig=="SELL" else "→ 매수 대응" if sig=="BUY" else "→ 유지(주시)" if sig=="WATCH" else "→ 보유 유지"
         act_color = "#f85149" if sig=="SELL" else "#3fb950" if sig=="BUY" else "#e3b341" if sig=="WATCH" else "#3fb950"
         rows += f"""
         <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #21262d">
