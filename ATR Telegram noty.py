@@ -187,42 +187,61 @@ def send_telegram(token, chat_id, text):
 
 def build_telegram_msg():
     now  = datetime.now().strftime("%Y/%m/%d %H:%M")
+    today = datetime.now().strftime("%Y/%m/%d")
     sigs = [r.get("signal") for r in results.values()]
 
-    if "SELL" in sigs:
-        header = "🚨 <b>매도 신호 발생!</b>\n내일 시가 매도 필요"
-    elif "BUY" in sigs:
-        header = "✅ <b>복귀 신호 발생!</b>\n내일 시가 매수 필요"
-    elif "WATCH" in sigs:
-        header = "⚠️ <b>주시 구간</b>\n이평선 하회 중 — 포지션 유지"
-    else:
-        header = "✅ <b>모든 자산 정상 보유</b>\n매매 신호 없음"
+    has_sell  = "SELL" in sigs
+    has_buy   = "BUY"  in sigs
+    has_watch = "WATCH" in sigs
 
-    lines = [f"📊 <b>ATR 신호 체커</b> | {now}", "", header, "", "─" * 25]
+    # 헤더
+    if has_sell:
+        header = "🚨 <b>매도 신호 발생! 즉시 확인 필요</b>"
+    elif has_buy:
+        header = "✅ <b>복귀 신호 발생! 즉시 확인 필요</b>"
+    else:
+        header = "📋 어제와 동일 — 매매 없음"
+
+    lines = [
+        f"📅 <b>{today}</b>  |  ATR 신호 체커",
+        f"🕐 업데이트: {now}",
+        "",
+        header,
+        "─" * 28,
+    ]
 
     for key, r in results.items():
         cfg  = CFG[key]
         sig  = r.get("signal", "error")
         icon = "🔴" if sig=="SELL" else "🟢" if sig=="BUY" else "🟡" if sig=="WATCH" else "🔵"
         pos  = r.get("position", "-")
-        defe = "🛡 방어중" if r.get("is_defense") else "📈 보유중"
+        defe = "🛡방어중" if r.get("is_defense") else "📈보유중"
         pr   = r.get("price")
         ma   = r.get("ma")
         ratio= r.get("ratio")
 
-        lines.append(f"\n{icon} <b>{cfg['name']}</b> [{defe}: {pos}]")
+        lines.append(f"\n{icon} <b>{cfg['name']}</b>")
+        lines.append(f"  [{defe}: {pos}]")
         if pr:
             if cfg["cur"] == "USD":
                 lines.append(f"  현재가: ${pr:,.2f} ({fmt_krw(pr)})")
-                lines.append(f"  {cfg['ma']}일선: ${ma:,.2f} ({fmt_krw(ma)})")
+                lines.append(f"  {cfg['ma']}일선: ${ma:,.2f} | 이격도: {ratio:+.2f}%")
             else:
                 lines.append(f"  현재가: {int(pr):,}pt")
-                lines.append(f"  {cfg['ma']}일선: {int(ma):,}pt")
-            lines.append(f"  이격도: {ratio:+.2f}%")
+                lines.append(f"  {cfg['ma']}일선: {int(ma):,}pt | 이격도: {ratio:+.2f}%")
         lines.append(f"  → {r.get('msg','')}")
 
-    lines += ["", "─" * 25,
-              "💡 오늘 장 마감 후 확인 → 내일 시가 매매"]
+    lines += [
+        "",
+        "─" * 28,
+    ]
+
+    # 하단 안내
+    if has_sell or has_buy:
+        lines.append("⚡ 오늘 장 마감 후 확인 → 내일 시가 매매")
+    else:
+        lines.append("💤 오늘 매매 없음 — 내일 다시 확인")
+
     return "\n".join(lines)
 
 msg = build_telegram_msg()
