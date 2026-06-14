@@ -8,15 +8,22 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
+import os
 from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
 # ──────────────────────────────────────────────────────────────
-# ★ 텔레그램 설정 (여기만 수정)
+# ★ 텔레그램 설정
+#    깃허브 Actions: Secrets에서 자동으로 불러옴
+#    로컬/Colab:     아래 주석 해제하고 직접 입력
 # ──────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN   = "여기에_봇_토큰_입력"   # @BotFather에서 받은 토큰
-TELEGRAM_CHAT_ID = "여기에_채팅ID_입력"     # @userinfobot에서 확인
+TELEGRAM_TOKEN   = os.getenv("TG_TOKEN")    # 깃허브 Secrets: TG_TOKEN
+TELEGRAM_CHAT_ID = os.getenv("TG_CHAT_ID")  # 깃허브 Secrets: TG_CHAT_ID
+
+# 로컬/Colab에서 테스트할 때는 아래 주석 해제
+# TELEGRAM_TOKEN   = "직접_토큰_입력"
+# TELEGRAM_CHAT_ID = "직접_채팅ID_입력"
 
 KRW_RATE = 1350  # 원/달러 환율
 
